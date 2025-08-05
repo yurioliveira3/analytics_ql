@@ -1,0 +1,30 @@
+services:
+  postgres:
+    container_name: pgia
+    restart: unless-stopped
+    image: pgvector/pgvector:pg16
+    ports:
+      - '5482:5432'
+    volumes:
+      - './init-scripts/schemas.sql:/docker-entrypoint-initdb.d/1_schemas.sql'
+      - './init-scripts/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql'
+      - './init-scripts/lang_setup.sql:/docker-entrypoint-initdb.d/3_lang_setup.sql'
+      - 'data:/var/lib/postgresql/data'
+    networks:
+      - custom_nw
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-analytics_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgresql}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      TZ: America/Sao_Paulo
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U postgresql"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 5
+
+networks:
+  custom_nw:
+
+volumes:
+  data: {}

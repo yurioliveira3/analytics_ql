@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>AnalyticSQL</title>
+    <link rel="stylesheet" href="/static/front/style.css">
+    <link rel="stylesheet" href="/static/front/modal.css">
+    <link rel="icon" type="image/png" href="/static/front/chat.png">
+</head>
+<body class="dark-mode" data-current-session-id="{{ current_session_id }}">
+    <!-- Indicador da sidebar -->
+    <div class="sidebar-indicator" title="Histórico de Conversas"></div>
+    
+    <!-- Sidebar de histórico -->
+    <div class="history-sidebar" id="history-sidebar">
+        <div class="history-sidebar-header">
+            <!-- SQL Generator -->
+            <button class="new-chat-btn sidebar-btn sql-generator-btn">🧠 SQL Generator</button>
+            <h3>💬 Histórico de Chats</h3>
+            <button class="new-chat-btn create-session-btn">➕ Nova Conversa</button>
+        </div>
+        <div class="sessions-list" id="sessions-list">
+            {% for session in sessions %}
+            <div class="session-item{% if session.id == current_session_id %} active{% endif %}" 
+                 data-session-id="{{ session.id }}">
+                <div class="session-title">{{ session.title }}</div>
+                <div class="session-preview">{{ session.last_message }}</div>
+                <div class="session-date">{{ session.last_activity | replace('T', ' ') | replace('Z', '') | truncate(16, True, '') }}</div>
+                <div class="session-actions">
+                    <button class="session-btn delete-btn delete-session-btn" data-session-id="{{ session.id }}" title="Deletar">🗑️</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <!-- Botão Tema no rodapé da sidebar -->
+        <div class="history-sidebar-footer">
+            <button class="new-chat-btn sidebar-btn toggle-theme-btn">🌗 Tema</button>
+        </div>
+    </div>
+
+
+    <!-- Conteúdo principal -->
+    <main class="main-content">
+        <div class="chat-box" id="chat-box">  
+            <h2 class="chat-title">🧠 SQL Generator</h2>
+            {% for message in history %}
+                <div class="user-query fade-in">
+                    <p class="user-label">Usuário:</p>
+                    {{ message.nl_query }}
+                </div>
+                <div class="bot fade-in">
+                    {% if not message.executed_query %}
+                        {% if message.explanation %}
+                            <p class="response-title">Resumo:</p>
+                            <pre class="explanation-text">{{ message.explanation }}</pre>
+                        {% endif %}
+                        <p class="response-title">Consulta Proposta:</p>
+                        <div class="sql-block">
+                            <pre class="response-list"><code id="proposed-sql-{{ loop.index }}">{{ message.generated_query }}</code></pre>
+                            <button class="copy-btn" data-target="proposed-sql-{{ loop.index }}" title="Copiar SQL"></button>
+                        </div>
+                    {% else %}
+                       {% if message.explanation %}
+                           <p class="response-title">Resumo:</p>
+                           <pre class="explanation-text">{{ message.explanation }}</pre>
+                       {% endif %}
+                        <p class="response-title">Consulta executada:</p>
+                        <div class="sql-block">
+                            <pre class="response-list"><code id="executed-sql-{{ loop.index }}">{{ message.executed_query }}</code></pre>
+                            <button class="copy-btn" data-target="executed-sql-{{ loop.index }}" title="Copiar SQL"></button>
+                        </div>
+                        {% if message.dataframe_analysis %}
+                        <div class="dataframe-container">
+                            <p class="response-title">Análise Descritiva:</p>
+                            <pre class="response-list">{{ message.dataframe_analysis | safe }}</pre>
+                        </div>
+                        {% endif %}
+                        {% if message.df_html %}
+                        <div class="dataframe-container">
+                            <p class="response-title">Resultado da Execução:</p>
+                            {{ message.df_html | safe }}
+                            <div class="response-info-download">
+                                {% if message.total_rows and message.total_rows > 3 %}
+                                    <span class="response-info">Apresentando 3 linhas de {{ message.total_rows }} [total]</span>
+                                {% endif %}
+                                {% if message.csv %}
+                                    <a href="{{ url_for('download_xlsx', idx=loop.index0) }}" class="download-btn">Baixar Resultados</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if message.insights %}
+                        <div class="dataframe-container">
+                            <p class="response-title">Insight:</p>
+                            <pre class="explanation-text">{{ message.insights | safe }}</pre>
+                        </div>
+                        {% endif %}
+                        <!-- Seção de gráfico -->
+                        {% if message.chart_html %}
+                          <h5 class="response-title">Visualização sugerida</h5>
+                          <div class="chart-container">
+                            {{ message.chart_html|safe }}
+                          </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </main>
+
+    <!-- Input fixo no rodapé -->
+    <div class="chat-input-area">
+        <form class="chat-form" method="post" id="query-form" action="/">
+            <input type="text" name="nl_query" placeholder="Digite sua pergunta para gerar um SQL..." value="{{ nl_query or '' }}" required>
+            <div class="button-row">
+                <button type="submit">Construir SQL</button>
+                <button id="executar-sql" type="button"{% if not history or not history[-1]['generated_query'] %} disabled{% endif %}>
+                    Gerar Análise
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal de Confirmação -->
+    <div id="confirmation-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirmar Execução</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Você deseja executar a seguinte query?</p>
+                <div class="sql-preview-container">
+                    <span class="sql-preview-label">Query SQL:</span>
+                    <div class="sql-block" style="margin:0; position:relative;">
+                        <pre id="sql-preview"></pre>
+                        <button class="copy-btn" id="copy-modal-btn" data-target="sql-preview" title="Copiar SQL"></button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="modal-buttons">
+                    <button id="cancel-execute" class="cancel-btn">Cancelar</button>
+                    <button id="confirm-execute">Executar Query</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/front/script.js"></script>
+    <script src="/static/front/modal.js"></script>
+    <footer>O AnalyticSQL pode cometer erros. Considere verificar informações importantes.</footer>
+</body>
+</html>
