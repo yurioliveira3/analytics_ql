@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 
 def run_migration():
     """Executa as migrações do banco de dados."""
-    logger.info("🔄 Executando migrações do banco de dados...")
+    logger.info("Executando migrações do banco de dados...")
     
     migration_script = os.path.join(
         os.path.dirname(__file__), 
@@ -26,22 +26,22 @@ def run_migration():
     try:
         result = subprocess.run([sys.executable, migration_script], capture_output=True, text=True)
         if result.returncode == 0:
-            logger.info("✅ Migrações executadas com sucesso!")
+            logger.info("Migrações executadas com sucesso!")
             if result.stdout:
                 logger.info(result.stdout)
         else:
-            logger.error("❌ Erro durante as migrações:")
+            logger.error("Erro durante as migrações:")
             logger.error(result.stderr)
             return False
     except Exception as e:
-        logger.error(f"❌ Erro ao executar migrações: {e}")
+        logger.error(f"Erro ao executar migrações: {e}")
         return False
     
     return True
 
 def start_app():
     """Inicia a aplicação Flask."""
-    logger.info("🚀 Iniciando aplicação...")
+    logger.info("Iniciando aplicação...")
     
     app_script = os.path.join(os.path.dirname(__file__), "App", "app.py")
     
@@ -52,26 +52,26 @@ def start_app():
         # Executa a aplicação
         subprocess.run([sys.executable, "app.py"])
     except KeyboardInterrupt:
-        logger.info("\n👋 Aplicação finalizada pelo usuário.")
+        logger.info("\nAplicação finalizada pelo usuário.")
     except Exception as e:
-        logger.error(f"❌ Erro ao iniciar aplicação: {e}")
+        logger.error(f"Erro ao iniciar aplicação: {e}")
 
 def main():
     """Função principal."""
-    logger.info("🏁 Inicializando AnalyticSQL...")
+    logger.info("Inicializando AnalyticSQL...")
     
     # Verifica se o arquivo .env existe
     env_file = os.path.join(os.path.dirname(__file__), "App", ".env")
     if not os.path.exists(env_file):
         print(f"⚠️  Arquivo .env não encontrado em {env_file}")
-        print("📝 Certifique-se de configurar as variáveis de ambiente necessárias:")
+        print("Certifique-se de configurar as variáveis de ambiente necessárias:")
         print("   - GEMINI_API_KEY")
         print("   - DATABASE_URL (opcional)")
         return 1
     
     # Executa migrações
     if not run_migration():
-        print("❌ Falha nas migrações. Aplicação não será iniciada.")
+        print("Falha nas migrações. Aplicação não será iniciada.")
         return 1
     
     # Inicia aplicação

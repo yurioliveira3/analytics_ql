@@ -15,7 +15,7 @@ CONNECTION_STRING = os.getenv(
     'postgresql://localhost:5432/analytics_db'
 )
 
-print(f"🔌 Conectando ao banco: {CONNECTION_STRING.split('@')[0]}@...")
+print(f"Conectando ao banco: {CONNECTION_STRING.split('@')[0]}@...")
 
 # Conecta ao banco
 engine = create_engine(CONNECTION_STRING)
@@ -107,26 +107,26 @@ END $$;
 """
 
 def main():
-    print("🔄 Criando tabelas de chat...")
+    print("Criando tabelas de chat...")
     
     try:
         with engine.connect() as conn:
             # Tenta criar schema primeiro
             try:
-                print("📁 Tentando criar schema metadata...")
+                print("Tentando criar schema metadata...")
                 conn.execute(text(create_schema_sql))
-                print("✅ Schema metadata criado ou já existe")
+                print("Schema metadata criado ou já existe")
             except Exception as e:
                 print(f"⚠️  Não foi possível criar schema metadata: {e}")
-                print("📁 Continuando com schema public...")
+                print("Continuando com schema public...")
             
             # Cria tabelas
-            print("📋 Criando tabelas e índices...")
+            print("Criando tabelas e índices...")
             conn.execute(text(create_tables_sql))
             
             conn.commit()
             
-        print("✅ Tabelas criadas com sucesso!")
+        print("Tabelas criadas com sucesso!")
         
         # Verifica se as tabelas foram criadas
         with engine.connect() as conn:
@@ -143,7 +143,7 @@ def main():
                     
                     tables = [row[0] for row in result]
                     if tables:
-                        print(f"📊 Tabelas encontradas no schema {schema}: {tables}")
+                        print(f"Tabelas encontradas no schema {schema}: {tables}")
                         
                         # Verifica a tabela chat_history se existir
                         if schema == 'metadata':
@@ -155,7 +155,7 @@ def main():
                             """))
                             
                             if history_result.scalar() > 0:
-                                print(f"📜 Tabela chat_history encontrada no schema {schema}")
+                                print(f"Tabela chat_history encontrada no schema {schema}")
                 
                 except Exception as e:
                     print(f"⚠️  Erro ao verificar schema {schema}: {e}")
