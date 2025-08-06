@@ -1,14 +1,28 @@
+/* 
+  Regras considerads para classificar a dificuldade das queries:
+  Alta: usa CTE múltiplas, WINDOW/ROW_NUMBER(), LATERAL ou sub-CTEs em cascata
+  Média: até 3 joins, subqueries simples (HAVING, filtros), agregações básicas com GROUP BY
+  Baixa: SELECT simples, 0–2 joins, poucas agregações, sem subqueries
+
+  Totais finais
+    - Baixa: 36/65 (55%)
+    - Média: 20/65 (31%)
+    - Alta : 9/65 (14%)
+*/ 
 -- ####################################################################################
 -- ############################### QUERIES PARA ALUNOS ################################
 -- ####################################################################################
 
 -- Query 1: Selecionar todos os alunos cadastrados.
+-- Nível de dificuldade: Baixa
 SELECT * FROM alunos.alunos;
 
 -- Query 2: Listar todos os cursos e suas descrições.
+-- Nível de dificuldade: Baixa
 SELECT nome, descricao FROM alunos.cursos;
 
 -- Query 3: Listar alunos e os cursos em que estão matriculados (JOIN simples).
+-- Nível de dificuldade: Média
 SELECT
     a.nome AS nome_aluno,
     c.nome AS nome_curso,
@@ -21,6 +35,7 @@ JOIN
     alunos.cursos c ON m.id_curso = c.id;
 
 -- Query 4: Exibir as disciplinas e os professores que as lecionam (JOIN simples).
+-- Nível de dificuldade: Média
 SELECT
     d.nome AS disciplina,
     p.nome AS professor
@@ -30,6 +45,7 @@ LEFT JOIN
     alunos.professores p ON d.id_professor = p.id;
 
 -- Query 5: Consultar as notas de um aluno específico em suas disciplinas (JOIN duplo).
+-- Nível de dificuldade: Média
 SELECT
     a.nome AS aluno,
     d.nome AS disciplina,
@@ -46,6 +62,7 @@ WHERE
     a.email = 'ana.clara@email.com';
 
 -- Query 6: Listar todos os professores e os departamentos existentes.
+-- Nível de dificuldade: Média
 SELECT
     p.nome AS professor,
     d.nome AS departamento
@@ -55,6 +72,7 @@ CROSS JOIN
     alunos.departamentos d;
 
 -- Query 7: Exibir alunos que não possuem endereço cadastrado.
+-- Nível de dificuldade: Média
 SELECT
     a.nome AS aluno_sem_endereco
 FROM
@@ -65,6 +83,7 @@ WHERE
     e.id IS NULL;
 
 -- Query 8: Contar o número de disciplinas por curso.
+-- Nível de dificuldade: Média
 SELECT
     c.nome AS curso,
     COUNT(d.id) AS total_disciplinas
@@ -76,6 +95,7 @@ GROUP BY
     c.nome;
 
 -- Query 9: Listar turmas e o nome da disciplina associada.
+-- Nível de dificuldade: Média
 SELECT
     t.id AS id_turma,
     t.semestre,
@@ -87,6 +107,7 @@ JOIN
     alunos.disciplinas d ON t.id_disciplina = d.id;
 
 -- Query 10: Exibir alunos com presença registrada em uma data específica.
+-- Nível de dificuldade: Média
 SELECT
     a.nome AS aluno,
     pr.data_aula,
@@ -101,6 +122,7 @@ WHERE
     pr.data_aula = '2024-03-15';
 
 -- Query 11: Média, mediana e desvio padrão das notas por disciplina (somente com >= 10 notas).
+-- Nível de dificuldade: Alta
 WITH stats AS (
   SELECT
     d.id                AS id_disciplina,
@@ -117,6 +139,7 @@ SELECT * FROM stats
 WHERE qtd_notas >= 10;
 
 -- Query 12: Ranking dos alunos por média geral (DENSE_RANK por curso).
+-- Nível de dificuldade: Alta
 WITH medias AS (
   SELECT
     m.id_curso,
@@ -137,6 +160,7 @@ JOIN alunos.cursos c ON c.id = me.id_curso
 ORDER BY c.nome, posicao_no_curso;
 
 -- Query 13: Top 5 alunos por curso (mesma lógica da 12, limitado).
+-- Nível de dificuldade: Alta
 WITH medias AS (
   SELECT
     m.id_curso,
@@ -162,6 +186,7 @@ WHERE rn <= 5
 ORDER BY c.nome, media_aluno DESC;
 
 -- Query 14: Taxa de presença por aluno em cada turma (>= 75%).
+-- Nível de dificuldade: Alta
 SELECT
   a.nome AS aluno,
   t.id   AS id_turma,
@@ -177,6 +202,7 @@ HAVING AVG(CASE WHEN pr.presente THEN 1 ELSE 0 END) >= 0.75
 ORDER BY taxa_presenca_pct DESC;
 
 -- Query 15: Alunos reprovados (nota < 6) em 2 ou mais disciplinas.
+-- Nível de dificuldade: Alta
 WITH reprov AS (
   SELECT
     m.id_aluno,
@@ -193,6 +219,7 @@ WHERE qtd_reprovacoes >= 2
 ORDER BY qtd_reprovacoes DESC;
 
 -- Query 16: Distribuição de notas por faixas (0-5, 5-7, 7-9, 9-10) por disciplina.
+-- Nível de dificuldade: Média
 SELECT
   d.nome AS disciplina,
   SUM(CASE WHEN n.nota < 5   THEN 1 ELSE 0 END) AS faixa_0_5,
@@ -205,6 +232,7 @@ GROUP BY d.nome
 ORDER BY d.nome;
 
 -- Query 17: Evolução do número de matrículas por semestre (gera série de semestres dinamicamente).
+-- Nível de dificuldade: Baixa
 WITH semestres AS (
   SELECT DISTINCT semestre, ano
   FROM alunos.turmas
@@ -226,6 +254,7 @@ LEFT JOIN mat_por_sem mps
 ORDER BY s.ano, s.semestre;
 
 -- Query 18: Lista de alunos sem matrícula ativa.
+-- Nível de dificuldade: Baixa
 SELECT
   a.id,
   a.nome
@@ -234,6 +263,7 @@ LEFT JOIN alunos.matriculas m ON m.id_aluno = a.id AND m.status = 'Ativa'
 WHERE m.id IS NULL;
 
 -- Query 19: Disciplinas com mais de X turmas (exemplo: > 2).
+-- Nível de dificuldade: Baixa
 SELECT
   d.nome AS disciplina,
   COUNT(t.id) AS qtd_turmas
@@ -244,6 +274,7 @@ HAVING COUNT(t.id) > 2
 ORDER BY qtd_turmas DESC;
 
 -- Query 20: Nota média de cada aluno por disciplina (pivot simples com FILTER).
+-- Nível de dificuldade: Baixa
 SELECT
   a.nome AS aluno,
   AVG(n.nota) FILTER (WHERE d.nome = 'Banco de Dados') AS media_bd,
@@ -256,6 +287,7 @@ JOIN alunos.disciplinas d ON d.id = n.id_disciplina
 GROUP BY a.nome;
 
 -- Query 21: Dias letivos (aulas) por disciplina e percentual de presença (usando WINDOW).
+-- Nível de dificuldade: Alta
 WITH base AS (
   SELECT
     d.id AS id_disciplina,
@@ -277,6 +309,7 @@ GROUP BY disciplina
 ORDER BY presenca_geral_pct DESC;
 
 -- Query 22: Alunos com média acima da média do curso (subquery correlacionada).
+-- Nível de dificuldade: Média
 SELECT
   a.nome,
   c.nome AS curso,
@@ -293,6 +326,7 @@ HAVING AVG(n.nota) >
         WHERE m2.id_curso = c.id);
 
 -- Query 23: Quantidade de alunos por estado (endereços).
+-- Nível de dificuldade: Média
 SELECT
   e.estado,
   COUNT(DISTINCT a.id) AS total_alunos
@@ -302,6 +336,7 @@ GROUP BY e.estado
 ORDER BY total_alunos DESC;
 
 -- Query 24: Quantidade de disciplinas por professor (inclui 0).
+-- Nível de dificuldade: Média
 SELECT
   p.nome AS professor,
   COUNT(d.id) AS total_disciplinas
@@ -311,6 +346,7 @@ GROUP BY p.nome
 ORDER BY total_disciplinas DESC;
 
 -- Query 25: Última aula frequentada por cada aluno (MAX por data_aula).
+-- Nível de dificuldade: Baixa
 SELECT
   a.nome,
   MAX(pr.data_aula) AS ultima_presenca
@@ -321,6 +357,7 @@ GROUP BY a.nome
 ORDER BY ultima_presenca DESC;
 
 -- Query 26: % de alunos com endereço por cidade (GROUPING SETS exemplo simples).
+-- Nível de dificuldade: Baixa
 SELECT
   cidade,
   ROUND(100.0 * COUNT(DISTINCT id_aluno)::numeric /
@@ -330,6 +367,7 @@ GROUP BY cidade
 ORDER BY pct_alunos_com_endereco DESC;
 
 -- Query 27: Turmas superlotadas (mais de 40 matrículas/ presença).
+-- Nível de dificuldade: Baixa
 SELECT
   t.id AS turma,
   d.nome AS disciplina,
@@ -342,6 +380,7 @@ GROUP BY t.id, d.nome
 HAVING COUNT(DISTINCT m.id_aluno) > 40;
 
 -- Query 28: Média de notas por curso e semestre (JOIN turmas/disciplinas).
+-- Nível de dificuldade: Baixa
 SELECT
   c.nome  AS curso,
   t.semestre,
@@ -354,6 +393,7 @@ GROUP BY c.nome, t.semestre
 ORDER BY c.nome, t.semestre;
 
 -- Query 29: Alunos com mais de uma matrícula em cursos diferentes.
+-- Nível de dificuldade: Baixa
 SELECT
   a.nome,
   COUNT(DISTINCT m.id_curso) AS qtd_cursos
@@ -363,6 +403,7 @@ GROUP BY a.nome
 HAVING COUNT(DISTINCT m.id_curso) > 1;
 
 -- Query 30: Percentual de disciplinas com professor definido vs. sem professor.
+-- Nível de dificuldade: Baixa
 SELECT
   ROUND(100.0 * SUM(CASE WHEN id_professor IS NOT NULL THEN 1 ELSE 0 END) / COUNT(*), 2) AS pct_com_professor,
   ROUND(100.0 * SUM(CASE WHEN id_professor IS NULL THEN 1 ELSE 0 END) / COUNT(*), 2)     AS pct_sem_professor
@@ -373,15 +414,19 @@ FROM alunos.disciplinas;
 -- ####################################################################################
 
 -- Query 1: Selecionar todos os produtos disponíveis.
+-- Nível de dificuldade: Baixa
 SELECT * FROM produtos.produtos;
 
 -- Query 2: Listar todos os clientes.
+-- Nível de dificuldade: Baixa
 SELECT nome, email FROM produtos.clientes;
 
 -- Query 3: Visualizar todos os pedidos realizados.
+-- Nível de dificuldade: Baixa
 SELECT id, id_cliente, status, data_pedido FROM produtos.pedidos;
 
 -- Query 4: Listar produtos e suas respectivas categorias (JOIN simples).
+-- Nível de dificuldade: Média
 SELECT
     p.nome AS produto,
     c.nome AS categoria
@@ -391,6 +436,7 @@ JOIN
     produtos.categorias c ON p.id_categoria = c.id;
 
 -- Query 5: Verificar a quantidade de cada produto em estoque (JOIN simples).
+-- Nível de dificuldade: Baixa
 SELECT
     p.nome AS produto,
     e.quantidade
@@ -400,6 +446,7 @@ JOIN
     produtos.produtos p ON e.id_produto = p.id;
 
 -- Query 6: Exibir os pedidos junto com o nome do cliente que os realizou (JOIN simples).
+-- Nível de dificuldade: Média
 SELECT
     p.id AS id_pedido,
     c.nome AS cliente,
@@ -411,6 +458,7 @@ JOIN
     produtos.clientes c ON p.id_cliente = c.id;
 
 -- Query 7: Detalhar os itens de um pedido específico (JOIN duplo).
+-- Nível de dificuldade: Média
 SELECT
     ped.id AS id_pedido,
     prod.nome AS produto,
@@ -426,6 +474,7 @@ WHERE
     ped.id = 1;
 
 -- Query 8: Listar produtos e seus fornecedores (JOIN simples).
+-- Nível de dificuldade: Média
 SELECT
     p.nome AS produto,
     f.nome_fantasia AS fornecedor
@@ -435,6 +484,7 @@ JOIN
     produtos.fornecedores f ON p.id_fornecedor = f.id;
 
 -- Query 9: Mostrar as avaliações dos produtos, incluindo nome do cliente e do produto (JOIN duplo).
+-- Nível de dificuldade: Média
 SELECT
     p.nome AS produto,
     c.nome AS cliente,
@@ -448,6 +498,7 @@ JOIN
     produtos.clientes c ON a.id_cliente = c.id;
 
 -- Query 10: Consultar informações de envio de um pedido (JOIN duplo).
+-- Nível de dificuldade: Média
 SELECT
     p.id AS id_pedido,
     t.nome AS transportadora,
@@ -461,6 +512,7 @@ JOIN
     produtos.transportadoras t ON e.id_transportadora = t.id;
 
 -- Query 11: Listar produtos que nunca receberam avaliação.
+-- Nível de dificuldade: Baixa
 SELECT
     p.nome AS produto_sem_avaliacao
 FROM
@@ -471,6 +523,7 @@ WHERE
     a.id IS NULL;
 
 -- Query 12: Exibir clientes que nunca realizaram pedidos.
+-- Nível de dificuldade: Baixa
 SELECT
     c.nome AS cliente_sem_pedido
 FROM
@@ -481,6 +534,7 @@ WHERE
     p.id IS NULL;
 
 -- Query 13: Listar pedidos que ainda não possuem pagamento registrado.
+-- Nível de dificuldade: Baixa
 SELECT
     p.id AS pedido_sem_pagamento,
     p.status
@@ -492,6 +546,7 @@ WHERE
     pg.id IS NULL;
 
 -- Query 14: Exibir produtos que estão em promoção atualmente.
+-- Nível de dificuldade: Média
 SELECT
     pr.nome AS produto,
     pm.nome AS promocao,
@@ -506,6 +561,7 @@ WHERE
     CURRENT_DATE BETWEEN pm.data_inicio AND pm.data_fim;
 
 -- Query 15: Consultar o histórico de alteração de preços de um produto específico.
+-- Nível de dificuldade: Baixa
 SELECT
     lp.preco_antigo,
     lp.preco_novo,
@@ -513,9 +569,10 @@ SELECT
 FROM
     produtos.log_precos lp
 JOIN
-    produtos.produtos p ON lp.id_produto = p.id
+    produtos.produtos p ON lp.id_produto = p.id;
 
 -- Query 16: Receita total por mês (somando itens de pedido).
+-- Nível de dificuldade: Média
 SELECT
   DATE_TRUNC('month', p.data_pedido) AS mes,
   SUM(ip.quantidade * ip.preco_unitario) AS receita
@@ -525,6 +582,7 @@ GROUP BY 1
 ORDER BY 1;
 
 -- Query 17: Ticket médio por cliente.
+-- Nível de dificuldade: Alta
 WITH total_cliente AS (
   SELECT
     p.id_cliente,
@@ -544,6 +602,7 @@ JOIN produtos.clientes c ON c.id = tc.id_cliente
 ORDER BY total_gasto DESC;
 
 -- Query 18: Top 10 produtos mais vendidos (por valor).
+-- Nível de dificuldade: Baixa
 SELECT
   pr.nome,
   SUM(ip.quantidade * ip.preco_unitario) AS valor_total
@@ -554,6 +613,7 @@ ORDER BY valor_total DESC
 LIMIT 10;
 
 -- Query 19: Margem (%) por produto.
+-- Nível de dificuldade: Baixa
 SELECT
   p.nome,
   ROUND(100.0 * (p.preco_venda - p.preco_custo) / p.preco_venda, 2) AS margem_pct
@@ -561,6 +621,7 @@ FROM produtos.produtos p
 ORDER BY margem_pct DESC;
 
 -- Query 20: Produtos sem estoque ou com estoque abaixo de X (ex.: < 20).
+-- Nível de dificuldade: Baixa
 SELECT
   p.nome,
   e.quantidade
@@ -570,6 +631,7 @@ WHERE COALESCE(e.quantidade,0) < 20
 ORDER BY e.quantidade NULLS FIRST;
 
 -- Query 21: Pedidos sem envio após 3 dias da data_pedido.
+-- Nível de dificuldade: Baixa
 SELECT
   p.id,
   p.data_pedido,
@@ -580,6 +642,7 @@ WHERE e.id IS NULL
   AND CURRENT_DATE - p.data_pedido::date > 3;
 
 -- Query 22: Clientes com mais de N pedidos (ex.: > 5).
+-- Nível de dificuldade: Baixa
 SELECT
   c.nome,
   COUNT(p.id) AS total_pedidos
@@ -590,6 +653,7 @@ HAVING COUNT(p.id) > 5
 ORDER BY total_pedidos DESC;
 
 -- Query 23: Faturamento por categoria (agrupado).
+-- Nível de dificuldade: Baixa
 SELECT
   cat.nome AS categoria,
   SUM(ip.quantidade * ip.preco_unitario) AS faturamento
@@ -600,6 +664,7 @@ GROUP BY cat.nome
 ORDER BY faturamento DESC;
 
 -- Query 24: LTV (lifetime value) por cliente (soma de todos pedidos).
+-- Nível de dificuldade: Baixa
 SELECT
   c.nome,
   SUM(ip.quantidade * ip.preco_unitario) AS ltv
@@ -610,6 +675,7 @@ GROUP BY c.nome
 ORDER BY ltv DESC NULLS LAST;
 
 -- Query 25: Primeira compra de cada cliente.
+-- Nível de dificuldade: Baixa
 SELECT
   c.nome,
   MIN(p.data_pedido) AS primeira_compra
@@ -619,6 +685,7 @@ GROUP BY c.nome
 ORDER BY primeira_compra;
 
 -- Query 26: Variação percentual de preço por produto (log_precos).
+-- Nível de dificuldade: Baixa
 SELECT
   pr.nome,
   lp.preco_antigo,
@@ -630,6 +697,7 @@ JOIN produtos.produtos pr ON pr.id = lp.id_produto
 ORDER BY lp.data_alteracao DESC;
 
 -- Query 27: Preço final de produtos em promoção (preco_venda - desconto%).
+-- Nível de dificuldade: Baixa
 SELECT
   pr.nome,
   pr.preco_venda,
@@ -641,6 +709,7 @@ JOIN produtos.promocoes pm ON pm.id = pp.id_promocao
 WHERE CURRENT_DATE BETWEEN pm.data_inicio AND pm.data_fim;
 
 -- Query 28: Taxa de devolução por produto (% itens devolvidos / vendidos).
+-- Nível de dificuldade: Alta
 WITH vendidos AS (
   SELECT id_produto, SUM(quantidade) AS qtd_vendida
   FROM produtos.itens_pedido
@@ -662,6 +731,7 @@ LEFT JOIN devolvidos d ON d.id_produto = v.id_produto
 ORDER BY taxa_devolucao_pct DESC NULLS LAST;
 
 -- Query 29: Pedidos com atraso de pagamento (data_pagamento NULL ou > 2 dias após pedido).
+-- Nível de dificuldade: Média
 SELECT
   p.id AS pedido,
   p.data_pedido,
@@ -674,6 +744,7 @@ WHERE pg.data_pagamento IS NULL
 ORDER BY dias_ate_pagamento DESC;
 
 -- Query 30: Produtos com mais alterações de preço (log_precos count).
+-- Nível de dificuldade: Baixa
 SELECT
   pr.nome,
   COUNT(lp.id) AS alteracoes
@@ -683,6 +754,7 @@ GROUP BY pr.nome
 ORDER BY alteracoes DESC;
 
 -- Query 31: Clientes que avaliaram e compraram o mesmo produto (join tri-relacional).
+-- Nível de dificuldade: Média
 SELECT DISTINCT
   c.nome AS cliente,
   p.nome AS produto
@@ -693,6 +765,7 @@ JOIN produtos.itens_pedido ip ON ip.id_produto = p.id
 JOIN produtos.pedidos pd ON pd.id = ip.id_pedido AND pd.id_cliente = c.id;
 
 -- Query 32: Receita acumulada (running total) por dia.
+-- Nível de dificuldade: Alta
 WITH diario AS (
   SELECT
     p.data_pedido::date AS dia,
@@ -709,6 +782,7 @@ FROM diario
 ORDER BY dia;
 
 -- Query 33: Número de produtos por fornecedor e categoria (GROUPING SETS).
+-- Nível de dificuldade: Baixa
 SELECT
   f.nome_fantasia   AS fornecedor,
   c.nome            AS categoria,
@@ -719,6 +793,7 @@ JOIN produtos.categorias    c ON c.id = p.id_categoria
 GROUP BY GROUPING SETS ((f.nome_fantasia, c.nome), (f.nome_fantasia), (c.nome));
 
 -- Query 34: Pedidos com valor total calculado via LATERAL.
+-- Nível de dificuldade: Alta
 SELECT
   p.id,
   c.nome AS cliente,
@@ -733,6 +808,7 @@ JOIN LATERAL (
 ORDER BY tot.valor_total DESC NULLS LAST;
 
 -- Query 35: Produtos com estoque zerado que ainda estão em promoção (consistência/erro de negócio).
+-- Nível de dificuldade: Baixa
 SELECT
   pr.nome,
   e.quantidade,
@@ -743,4 +819,3 @@ JOIN produtos.promocoes pm ON pm.id = pp.id_promocao
 LEFT JOIN produtos.estoque e ON e.id_produto = pr.id
 WHERE COALESCE(e.quantidade,0) = 0
   AND CURRENT_DATE BETWEEN pm.data_inicio AND pm.data_fim;
-

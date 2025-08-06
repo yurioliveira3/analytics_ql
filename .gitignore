@@ -219,3 +219,6 @@ __pycache__/
 /venv
 **/venv/
 /.venv
+
+/flask_session 
+**/flask_session
