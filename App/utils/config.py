@@ -45,7 +45,7 @@ with engine.connect() as conn:
 vector_store = PGVector(
     embeddings=embedding_function,
     connection=engine,
-    collection_name="alunos",
+    collection_name="produtos", #TODO AJUSTAR PARA DEIXAR DINÂMICO
     embedding_length=1024,
     distance_strategy=DistanceStrategy.COSINE,
     pre_delete_collection=False,

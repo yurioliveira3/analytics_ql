@@ -12,7 +12,7 @@ from utils.modules import (
     TRAD_ESTATISTICAS,
     ALGORITHM_MAPPING
 )
-from flask import Flask, render_template, request, session, redirect, url_for, make_response, jsonify
+from flask import Flask, render_template, request, session, redirect, url_for, make_response, jsonify, flash
 from flask_session import Session
 import pandas as pd
 import json
@@ -419,8 +419,27 @@ def execute_last_query():
     query = last_assistant_message.get('generated_query')
     
     if query and is_query_safe(query):
-        exec_res, execution_time_ms, total_cost, plan_rows = execute_sql_query(query)
-        
+        try:
+            exec_res, execution_time_ms, total_cost, plan_rows = execute_sql_query(query)
+        except Exception as e:
+            logger.error(f"Erro de sintaxe na query gerada: {e}", exc_info=True)
+            flash(
+                "Infelizmente a nossa IA gerou uma query com erros de sintaxe. "
+                "Ainda estamos em fase de desenvolvimento, por favor envie a pergunta novamente.",
+                "danger"
+            )
+            return redirect(url_for("index"))
+
+        # Se o resultado for DataFrame vazio, interrompe e informa o usuário
+        if isinstance(exec_res, pd.DataFrame) and exec_res.empty:
+            logger.info(f"Nenhum dado foi retornado por essa consulta SQL.", exc_info=True)
+            flash(
+                "Nenhum dado foi retornado por essa consulta SQL. "
+                "Tente reformular sua pergunta ou ajustar os filtros.",
+                "warning"
+            )
+            return redirect(url_for("index"))
+
         result_data = {
             "execution_time_ms": execution_time_ms,
             "total_cost": total_cost,

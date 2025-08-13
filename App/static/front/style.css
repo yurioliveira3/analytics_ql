@@ -1223,3 +1223,11 @@ div .copy-btn,
     width: 18px !important;
     height: 26px !important;
 }
+
+.dark-mode .download-btn {
+  color: #ffffff;         /* texto claro */
+}
+
+.download-btn {
+  color: #000000;         /* texto escuro no modo escuro */
+}
