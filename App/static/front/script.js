@@ -51,11 +51,24 @@ window.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Restaurar posição de scroll do chat
+    // Restaurar posição de scroll do chat e configurar auto-hide do scrollbar
     const chatBox = document.getElementById('chat-box');
     const savedScroll = sessionStorage.getItem('chat-scroll');
     if (chatBox && savedScroll !== null) {
         chatBox.scrollTop = parseInt(savedScroll, 10);
+    }
+
+    // Auto-hide do scrollbar: mostra em interação e oculta após inatividade
+    if (chatBox) {
+        let hideTimer;
+        const show = () => {
+            chatBox.classList.add('show-scroll');
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => chatBox.classList.remove('show-scroll'), 1200);
+        };
+        ['scroll', 'mousemove', 'wheel', 'touchstart', 'touchmove', 'keydown'].forEach(evt => {
+            chatBox.addEventListener(evt, show, { passive: true });
+        });
     }
     
     // Limpa o campo de input se for uma nova sessão sem histórico

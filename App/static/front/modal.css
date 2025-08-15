@@ -69,9 +69,9 @@
 }
 
 .modal h2::before {
-  content: "⚡";
+  content: "⚡"; /* mantém o ícone apenas no título */
   font-size: 1.2em;
-  color: #007bff;
+  color: var(--btn-bg); /* segue paleta do projeto */
 }
 
 /* Botão de fechar */
@@ -144,43 +144,39 @@
   position: relative;
 }
 
-/* Botão de copiar no preview */
+/* Botão de copiar no preview (segue padrão de cores) */
 .copy-btn {
   position: absolute;
-  top: 6px;
-  right: 6px;
-  background: #a8adb6 !important;
-  color: transparent !important;
-  border: none;
-  border-radius: 3px;
-  padding: 0;
-  font-size: 0;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  background: var(--btn-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: transparent;
   cursor: pointer;
   transition: all 0.2s ease;
-  opacity: 0.9;
-  background-image: url('data:image/svg+xml;utf8,<svg width="9" height="9" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="white"/></svg>') !important;
-  background-repeat: no-repeat !important;
-  background-position: center !important;
-  background-size: 9px 9px !important;
-  width: 18px !important;
-  height: 26px !important;
+  font-size: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-image: url('data:image/svg+xml;utf8,<svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="white"/></svg>');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
 }
 
 .copy-btn:hover {
-  background-color: #969ca7 !important;
-  opacity: 1;
+  background-color: var(--btn-hover);
   transform: translateY(-1px);
-  background-image: url('data:image/svg+xml;utf8,<svg width="9" height="9" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="white"/></svg>') !important;
 }
 
 .copy-btn:disabled {
-  background-color: #d4d7dc !important;
+  background-color: var(--btn-bg);
+  opacity: 0.6;
   cursor: not-allowed;
   transform: none;
-  background-image: url('data:image/svg+xml;utf8,<svg width="9" height="9" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="white"/></svg>') !important;
 }
 
 /* --- Rodapé com botões --- */
@@ -220,22 +216,19 @@
   transform: translateY(-1px);
 }
 
+/* Botão Executar (sem emoji, seguindo o tema e acessível) */
 #confirm-execute {
-  background: #28a745 !important;
-  color: #fff !important;
+  background: var(--btn-bg) !important;
+  color: var(--btn-text) !important;
   position: relative;
   overflow: hidden;
-}
-
-#confirm-execute::before {
-  content: "⚡";
-  margin-right: 8px;
+  border: none;
 }
 
 #confirm-execute:hover {
-  background: #218838 !important;
+  background: var(--btn-hover) !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 
 #confirm-execute:active {
@@ -350,20 +343,20 @@ body:not(.dark-mode) .modal-buttons .cancel-btn:hover {
     right: 8px;
     width: 28px;
     height: 28px;
-    background: var(--btn-bg);
-    border: 1px solid var(--border-color);
-    border-radius: var(--border-radius);
-    color: transparent;
+  background: var(--btn-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: #ffffff; /* garante contraste para icone */
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDxwYXRoIGQ9Ik00NDggMzJIMzIwQzI4NCAzMiAyNTYgNjAgMjU2IDk2djMySDk2QzYwIDEyOCAzMiAxNTYgMzIgMTkydjI1NkMzMiA0ODQgNjAgNTEyIDk2IDUxMmgyNTZjMzYgMCA2NC0yOCA2NC02NFYzODRoMzJjMzYgMCA2NC0yOCA2NC02NFY5NkM1MTIgNjAgNDg0IDMyIDQ0OCAzMlpNMzY4IDQxNmgtNjRWMzIwSDEyOFYxOTJoMTI4djY0aDEyOHYxNjBaTTM2OCAzMjBWMTkyaDY0djEyOEgzNjhaIiBmaWxsPSJjdXJyZW50Q29sb3IiLz4KPC9zdmc+');
+  background-image: url('data:image/svg+xml;utf8,<svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" fill="white"/></svg>');
     background-repeat: no-repeat;
     background-position: center;
-    background-size: 14px 14px;
+  background-size: 12px 12px;
 }
 
 #copy-modal-btn:hover {
@@ -377,8 +370,13 @@ body:not(.dark-mode) .modal-buttons .cancel-btn:hover {
 }
 
 #copy-modal-btn:disabled {
-    background-color: var(--btn-bg);
+  background-color: var(--btn-bg);
     opacity: 0.6;
     cursor: not-allowed;
     transform: none;
+}
+
+#copy-modal-btn:focus-visible {
+  outline: 2px solid var(--btn-hover);
+  outline-offset: 2px;
 }

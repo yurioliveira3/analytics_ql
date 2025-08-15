@@ -1,18 +1,13 @@
+from flask import Flask, render_template, request, session, redirect, url_for, make_response, jsonify, flash
+from utils.llm_utils import generate_insights_payload, read_prompt_file, safe_send_message
+from utils.sql_operations import execute_sql_query, is_query_safe
+from utils.constants import TRAD_ESTATISTICAS, ALGORITHM_MAPPING
+from utils.query_generation import get_sql_from_text
+from utils.llms import generative_model_insights
+from utils.chart_generator import suggest_chart
 from utils.logger import get_logger
 from utils.config import DIR_PATH
-from utils.modules import (
-    get_sql_from_text, 
-    execute_sql_query, 
-    is_query_safe, 
-    suggest_chart, 
-    generate_insights_payload,
-    generative_model_insights, 
-    read_prompt_file,
-    safe_send_message,
-    TRAD_ESTATISTICAS,
-    ALGORITHM_MAPPING
-)
-from flask import Flask, render_template, request, session, redirect, url_for, make_response, jsonify, flash
+
 from flask_session import Session
 import pandas as pd
 import json
@@ -20,10 +15,9 @@ import io
 import os
 import uuid
 
-# Importações do sistema de histórico
-from Database.database import get_db
 from Database.services import get_chat_service
 from Database.models import chat_sessions
+from Database.database import get_db
 
 app = Flask(__name__)
 app.config['SESSION_TYPE'] = 'filesystem'
