@@ -1,0 +1,52 @@
+services:
+  # Engine - Responsável pelo mapeamento de metadados
+  engine:
+    build:
+      context: .
+      dockerfile: Engine/Dockerfile
+    container_name: analytics_ql_engine
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - analytics_network
+    restart: unless-stopped
+
+  # App - Interface web Flask
+  app:
+    build:
+      context: .
+      dockerfile: App/Dockerfile
+    container_name: analytics_ql_app
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - PG_CONNECTION_STRING=postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?options=-csearch_path%3Dlang,public
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./logs:/app/logs
+      - ./App/flask_session:/app/App/flask_session
+    networks:
+      - analytics_network
+    restart: unless-stopped
+    depends_on:
+      - engine
+
+networks:
+  analytics_network:
+    driver: bridge
+
+volumes:
+  logs:
+  flask_session:

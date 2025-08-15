@@ -1,0 +1,44 @@
+# Arquivos Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Logs (serão montados como volume)
+logs/*.log
+
+# Sessões Flask (serão montadas como volume)
+App/flask_session/*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Variáveis de ambiente
+.env
+.env.local
+
+# Documentação
+README.md
+LICENSE
+
+# Testes
+Test/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
