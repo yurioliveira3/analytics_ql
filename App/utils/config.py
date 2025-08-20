@@ -21,6 +21,7 @@ load_dotenv()
 # --- Constantes ---
 DIR_PATH: Final[str] = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 CONNECTION_STRING: Final[str | None] = os.environ.get("PG_CONNECTION_STRING")
+COLLECTION_NAME: Final[str] = os.environ.get("COLLECTION_NAME", "alunos")
 
 if not CONNECTION_STRING:
     raise ValueError("A variável de ambiente PG_CONNECTION_STRING não foi definida.")
@@ -45,7 +46,7 @@ with engine.connect() as conn:
 vector_store = PGVector(
     embeddings=embedding_function,
     connection=engine,
-    collection_name="produtos", #TODO AJUSTAR PARA DEIXAR DINÂMICO
+    collection_name=COLLECTION_NAME,
     embedding_length=1024,
     distance_strategy=DistanceStrategy.COSINE,
     pre_delete_collection=False,

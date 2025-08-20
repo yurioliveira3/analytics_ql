@@ -7,6 +7,13 @@ from utils.llms import generative_model_insights
 from utils.chart_generator import suggest_chart
 from utils.logger import get_logger
 from utils.config import DIR_PATH
+from utils.query_protection import (
+    normalize_query, 
+    generate_query_hash, 
+    validate_query_integrity,
+    create_query_audit_log,
+    validate_query_safety_enhanced
+)
 
 from flask_session import Session
 import pandas as pd
@@ -392,6 +399,7 @@ def index():
 def execute_last_query():
     """
     Executa a última query gerada e salva no histórico persistente.
+    Inclui camada de proteção para garantir integridade da query.
     """
     current_session_id = get_or_create_session_id()
     
@@ -408,45 +416,104 @@ def execute_last_query():
             break
     
     if not last_assistant_message:
+        logger.warning("Nenhuma query encontrada para execução")
+        flash("Nenhuma query foi encontrada para execução.", "warning")
         return redirect(url_for("index"))
 
-    query = last_assistant_message.get('generated_query')
+    stored_query = last_assistant_message.get('generated_query')
     
-    if query and is_query_safe(query):
-        try:
-            exec_res, execution_time_ms, total_cost, plan_rows = execute_sql_query(query)
-        except Exception as e:
-            logger.error(f"Erro de sintaxe na query gerada: {e}", exc_info=True)
-            flash(
-                "Infelizmente a nossa IA gerou uma query com erros de sintaxe. "
-                "Ainda estamos em fase de desenvolvimento, por favor envie a pergunta novamente.",
-                "danger"
-            )
-            return redirect(url_for("index"))
+    # CAMADA DE PROTEÇÃO: Validar integridade da query
+    if not stored_query:
+        logger.error("Query vazia detectada na mensagem do assistente")
+        flash("Erro: Query vazia detectada. Por favor, gere uma nova consulta.", "danger")
+        return redirect(url_for("index"))
+    
+    # Gerar hash da query armazenada para log de auditoria
+    query_hash = generate_query_hash(stored_query)
+    logger.info(f"Iniciando execução da query. Hash: {query_hash[:16]}...")
+    
+    # CAMADA DE PROTEÇÃO: Validação de segurança aprimorada
+    is_safe, safety_reason, safety_metadata = validate_query_safety_enhanced(stored_query)
+    if not is_safe:
+        logger.error(f"Query não segura bloqueada. Motivo: {safety_reason}, Hash: {query_hash[:16]}")
+        flash(f"Query bloqueada por razões de segurança: {safety_reason}", "danger")
+        return redirect(url_for("index"))
+    
+    # Log de auditoria da validação de segurança
+    audit_log = create_query_audit_log(stored_query, "security_validated", safety_metadata)
+    logger.info(f"Validação de segurança aprovada: {audit_log}")
+    
+    # Validação adicional usando função original (para compatibilidade)
+    if not is_query_safe(stored_query):
+        logger.error(f"Query falhou na validação de segurança tradicional. Hash: {query_hash[:16]}")
+        flash("Query bloqueada por razões de segurança.", "danger")
+        return redirect(url_for("index"))
+    
+    # CAMADA DE PROTEÇÃO: Validar que a query não foi modificada
+    # Comparar com o que seria executado exatamente
+    execution_query = stored_query  # A query que realmente será executada
+    is_valid, validation_error = validate_query_integrity(stored_query, execution_query)
+    
+    if not is_valid:
+        logger.error(f"Falha na validação de integridade: {validation_error}")
+        flash(f"Erro de integridade detectado: {validation_error}. Por favor, gere uma nova consulta.", "danger")
+        return redirect(url_for("index"))
 
-        # Se o resultado for DataFrame vazio, interrompe e informa o usuário
-        if isinstance(exec_res, pd.DataFrame) and exec_res.empty:
-            logger.info(f"Nenhum dado foi retornado por essa consulta SQL.", exc_info=True)
-            flash(
-                "Nenhum dado foi retornado por essa consulta SQL. "
-                "Tente reformular sua pergunta ou ajustar os filtros.",
-                "warning"
-            )
-            return redirect(url_for("index"))
-
-        result_data = {
+    # Log de auditoria antes da execução
+    logger.info(f"Query validada com sucesso. Executando query com hash: {query_hash[:16]}")
+    audit_log_pre = create_query_audit_log(execution_query, "pre_execution", {
+        "session_id": current_session_id[:8],
+        "validation_passed": True
+    })
+    logger.debug(f"Auditoria pré-execução: {audit_log_pre}")
+    
+    try:
+        exec_res, execution_time_ms, total_cost, plan_rows = execute_sql_query(execution_query)
+        
+        # Log pós-execução para auditoria
+        audit_log_post = create_query_audit_log(execution_query, "executed", {
+            "session_id": current_session_id[:8],
             "execution_time_ms": execution_time_ms,
             "total_cost": total_cost,
-            "plan_rows": plan_rows
-        }
+            "plan_rows": plan_rows,
+            "result_type": type(exec_res).__name__
+        })
+        logger.info(f"Query executada com sucesso. Hash: {query_hash[:16]}, Tempo: {execution_time_ms}ms")
+        logger.debug(f"Auditoria pós-execução: {audit_log_post}")
         
-        df_html = None
-        dataframe_analysis_html = None
-        chart_html = None
-        chart_type = None
-        csv_text = ""
+    except Exception as e:
+        logger.error(f"Erro de sintaxe na query gerada (Hash: {query_hash[:16]}): {e}", exc_info=True)
+        flash(
+            "Infelizmente a nossa IA gerou uma query com erros de sintaxe. "
+            "Ainda estamos em fase de desenvolvimento, por favor envie a pergunta novamente.",
+            "danger"
+        )
+        return redirect(url_for("index"))
 
-        if isinstance(exec_res, pd.DataFrame):
+    # Se o resultado for DataFrame vazio, interrompe e informa o usuário
+    if isinstance(exec_res, pd.DataFrame) and exec_res.empty:
+        logger.info(f"Nenhum dado foi retornado por essa consulta SQL (Hash: {query_hash[:16]}).")
+        flash(
+            "Nenhum dado foi retornado por essa consulta SQL. "
+            "Tente reformular sua pergunta ou ajustar os filtros.",
+            "warning"
+        )
+        return redirect(url_for("index"))
+
+    result_data = {
+        "execution_time_ms": execution_time_ms,
+        "total_cost": total_cost,
+        "plan_rows": plan_rows,
+        "query_hash": query_hash  # Incluir hash nos dados de resultado para rastreabilidade
+    }
+    
+    df_html = None
+    dataframe_analysis_html = None
+    chart_html = None
+    chart_type = None
+    csv_text = ""
+
+    if isinstance(exec_res, pd.DataFrame):
             # Registrar total de linhas e limitar exibição a 3 linhas
             total_rows = exec_res.shape[0]
             display_df = exec_res if total_rows <= 3 else exec_res.head(3)
@@ -504,60 +571,117 @@ def execute_last_query():
             except Exception as e:
                 logger.error(f"Erro ao aplicar algoritmo de ML: {e}")
 
-        else:
-            # Se a execução retornou uma string de erro
-            df_html = f'<div class="error-message">{exec_res}</div>'
-            result_data["df_html"] = df_html
-            # Sem gráfico para erro
-            result_data["chart_html"] = ""
-            result_data["chart_type"] = ""
+    else:
+        # Se a execução retornou uma string de erro
+        df_html = f'<div class="error-message">{exec_res}</div>'
+        result_data["df_html"] = df_html
+        # Sem gráfico para erro
+        result_data["chart_html"] = ""
+        result_data["chart_type"] = ""
 
-        # Gerar insights
-        payload = generate_insights_payload(
-            last_entry=last_assistant_message,
-            result=exec_res if isinstance(exec_res, pd.DataFrame) else None,
-            dataframe_analysis_df=dataframe_analysis_df if "dataframe_analysis_df" in locals() else None,
-            ml_algorithm=last_assistant_message.get('ml_algorithm'),
-            chart_type=chart_type
+    # Gerar insights
+    payload = generate_insights_payload(
+        last_entry=last_assistant_message,
+        result=exec_res if isinstance(exec_res, pd.DataFrame) else None,
+        dataframe_analysis_df=dataframe_analysis_df if "dataframe_analysis_df" in locals() else None,
+        ml_algorithm=last_assistant_message.get('ml_algorithm'),
+        chart_type=chart_type
+    )
+
+    prompt_template = read_prompt_file(os.path.join(DIR_PATH, "prompts", "insights_generation.txt"))
+    prompt = prompt_template.replace("{payload}", json.dumps(payload, ensure_ascii=False, default=str))
+    
+    try:
+        insights_resp = safe_send_message(generative_model_insights, prompt)
+        insights = insights_resp.text
+        result_data["insights"] = insights
+    except Exception as e:
+        insights = f"Erro ao gerar insights: {e}"
+        result_data["insights"] = insights
+
+    # Atualizar a mensagem do assistente no banco com os resultados da execução
+    # Buscar a mensagem específica para atualizar
+    from Database.models import chat_messages
+    from sqlalchemy.orm import Session
+    
+    assistant_msg = (
+        db.query(chat_messages)
+        .filter(
+            chat_messages.session_id == uuid.UUID(current_session_id),
+            chat_messages.role == "assistant",
+            chat_messages.generated_query == stored_query
         )
-
-        prompt_template = read_prompt_file(os.path.join(DIR_PATH, "prompts", "insights_generation.txt"))
-        prompt = prompt_template.replace("{payload}", json.dumps(payload, ensure_ascii=False, default=str))
-        
-        try:
-            insights_resp = safe_send_message(generative_model_insights, prompt)
-            insights = insights_resp.text
-            result_data["insights"] = insights
-        except Exception as e:
-            insights = f"Erro ao gerar insights: {e}"
-            result_data["insights"] = insights
-
-        # Atualizar a mensagem do assistente no banco com os resultados da execução
-        # Buscar a mensagem específica para atualizar
-        from Database.models import chat_messages
-        from sqlalchemy.orm import Session
-        
-        assistant_msg = (
-            db.query(chat_messages)
-            .filter(
-                chat_messages.session_id == uuid.UUID(current_session_id),
-                chat_messages.role == "assistant",
-                chat_messages.generated_query == query
-            )
-            .order_by(chat_messages.created_at.desc())
-            .first()
-        )
-        
-        if assistant_msg:
-            assistant_msg.execution_result = json.dumps(result_data, default=str)
-            assistant_msg.execution_time_ms = execution_time_ms
-            assistant_msg.total_cost = total_cost
-            assistant_msg.plan_rows = plan_rows
-            assistant_msg.chart_type = chart_type
-            assistant_msg.insights = insights
-            db.commit()
+        .order_by(chat_messages.created_at.desc())
+        .first()
+    )
+    
+    if assistant_msg:
+        assistant_msg.execution_result = json.dumps(result_data, default=str)
+        assistant_msg.execution_time_ms = execution_time_ms
+        assistant_msg.total_cost = total_cost
+        assistant_msg.plan_rows = plan_rows
+        assistant_msg.chart_type = chart_type
+        assistant_msg.insights = insights
+        db.commit()
 
     return redirect(url_for("index"))
+
+
+@app.route("/api/validate-query", methods=["POST"])
+def validate_query_endpoint():
+    """
+    Endpoint para validar a integridade de uma query antes da execução.
+    Usado pela camada de proteção do frontend.
+    """
+    try:
+        data = request.get_json()
+        query_to_validate = data.get('query', '')
+        
+        if not query_to_validate:
+            return jsonify({"valid": False, "error": "Query vazia"}), 400
+        
+        current_session_id = get_or_create_session_id()
+        db = next(get_db())
+        chat_service = get_chat_service(db)
+        
+        # Buscar a última query gerada
+        history_from_db = chat_service.get_session_history(current_session_id, limit=5)
+        
+        last_assistant_message = None
+        for msg in reversed(history_from_db):
+            if msg["role"] == "assistant" and msg.get("generated_query"):
+                last_assistant_message = msg
+                break
+        
+        if not last_assistant_message:
+            return jsonify({"valid": False, "error": "Nenhuma query encontrada na sessão"}), 404
+        
+        stored_query = last_assistant_message.get('generated_query')
+        
+        # Validar integridade
+        is_valid, validation_error = validate_query_integrity(stored_query, query_to_validate)
+        
+        # Gerar hashes para debug
+        stored_hash = generate_query_hash(stored_query)
+        validation_hash = generate_query_hash(query_to_validate)
+        
+        response_data = {
+            "valid": is_valid,
+            "stored_hash": stored_hash[:16],  # Primeiros 16 caracteres para identificação
+            "validation_hash": validation_hash[:16],
+            "queries_match": stored_hash == validation_hash
+        }
+        
+        if not is_valid:
+            response_data["error"] = validation_error
+            logger.warning(f"Validação de query falhou: {validation_error}")
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        logger.error(f"Erro na validação da query: {e}", exc_info=True)
+        return jsonify({"valid": False, "error": f"Erro interno: {str(e)}"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
