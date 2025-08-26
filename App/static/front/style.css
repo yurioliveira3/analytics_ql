@@ -856,6 +856,15 @@ button:disabled {
     box-shadow: var(--shadow-sm);
 }
 
+/* Chart container dentro de dataframe-container */
+.dataframe-container .chart-container {
+    background: none;
+    border: none;
+    box-shadow: none;
+    margin: 16px 0 0 0;
+    padding: 16px 0 0 0;
+}
+
 /* ===== Overrides para Tema Claro ===== */
 body:not(.dark-mode) .sql-block,
 body:not(.dark-mode) .dataframe-container pre.response-list,
@@ -864,6 +873,10 @@ body:not(.dark-mode) .explanation-text,
 body:not(.dark-mode) .chart-container {
     background: var(--box-bg) !important;
     color: var(--text) !important;
+}
+
+body:not(.dark-mode) .dataframe-container .chart-container {
+    background: none !important;
 }
 
 body:not(.dark-mode) .sidebar-btn {

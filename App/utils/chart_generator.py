@@ -38,17 +38,17 @@ def is_identifier(series: pd.Series) -> bool:
     return False
 
 
-def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None]:
+def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None, dict | None]:
     """
-    Analisa o DataFrame e devolve (html_snippet, chart_type).
+    Analisa o DataFrame e devolve (html_snippet, chart_type, regression_info).
 
-    Retorna (None, None) se nenhuma regra encontrar gráfico adequado.
+    Retorna (None, None, None) se nenhuma regra encontrar gráfico adequado.
     
     Args:
         df: DataFrame a ser analisado
         
     Returns:
-        Tupla com (HTML do gráfico, tipo do gráfico) ou (None, None)
+        Tupla com (HTML do gráfico, tipo do gráfico, informações da regressão) ou (None, None, None)
     """
     try:
         # 1 ─ Classificação de colunas
@@ -79,7 +79,7 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None]:
             return all(df[col].nunique() == len(df) for col in cols)
 
         if cat_cols and has_all_unique_values(cat_cols) and not num_cols:
-            return None, None  # Pula gráfico se tudo for único
+            return None, None, None  # Pula gráfico se tudo for único
 
         # 2 ─ Regras específicas (mais restritas → mais genéricas)
 
@@ -126,7 +126,7 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None]:
         elif cat_cols and len(num_cols) <= 1:
             cat = get_best_categorical(cat_cols)
             if cat is None:
-                return None, None  # Todas categóricas têm cardinalidade 1
+                return None, None, None  # Todas categóricas têm cardinalidade 1
 
             if num_cols:
                 values_col = num_cols[0]
@@ -168,7 +168,7 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None]:
         elif cat_cols:
             cat = get_best_categorical(cat_cols)
             if cat is None:
-                return None, None
+                return None, None, None
             
             counts = df[cat].value_counts().reset_index()
             counts.columns = [cat, "count"]
@@ -182,13 +182,13 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None]:
             chart_type = "histograma-data"
 
         else:
-            return None, None
+            return None, None, None
 
         # 3 ─ Layout padrão e exportação
         fig.update_layout(width=1000, height=400, margin=dict(l=20, r=20, t=40, b=20))
 
-        # Adiciona linha de tendência OLS quando aplicável
-        add_trendline_if_applicable(fig, df, chart_type, num_cols, dt_cols)
+        # Adiciona linha de tendência OLS quando aplicável e captura informações da regressão
+        regression_info = add_trendline_if_applicable(fig, df, chart_type, num_cols, dt_cols)
 
         html = pio.to_html(
             fig,
@@ -201,14 +201,14 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None]:
             }
         )
 
-        return html, chart_type
+        return html, chart_type, regression_info
 
     except Exception as e:
         logger.error(f"Erro em suggest_chart: {e}")
-        return None, None
+        return None, None, None
 
 
-def add_trendline_if_applicable(fig, df: pd.DataFrame, chart_type: str, num_cols: list[str], dt_cols: list[str]) -> None:
+def add_trendline_if_applicable(fig, df: pd.DataFrame, chart_type: str, num_cols: list[str], dt_cols: list[str]) -> dict | None:
     """
     Acrescenta uma linha de tendência OLS quando:
       • chart_type == "dispersao"  -> usa as duas colunas numéricas
@@ -221,6 +221,9 @@ def add_trendline_if_applicable(fig, df: pd.DataFrame, chart_type: str, num_cols
         chart_type: Tipo do gráfico
         num_cols: Colunas numéricas
         dt_cols: Colunas de data/tempo
+        
+    Returns:
+        Dicionário com informações da regressão se aplicável, None caso contrário
     """
     R2_THRESHOLD = 0.20               # ajuste de sensibilidade
 
@@ -230,10 +233,11 @@ def add_trendline_if_applicable(fig, df: pd.DataFrame, chart_type: str, num_cols
             x_col, y_col = num_cols[:2]
             data = df[[x_col, y_col]].dropna()
             if len(data) < 2:
-                return  # sem dados suficientes
+                return None  # sem dados suficientes
 
             x = data[x_col].to_numpy()
             y = data[y_col].to_numpy()
+            x_var_name, y_var_name = x_col, y_col
 
         # Caso 2 ─ Multi-line temporal: datetime + numérico
         elif chart_type == "multilinha" and dt_cols and num_cols:
@@ -241,23 +245,24 @@ def add_trendline_if_applicable(fig, df: pd.DataFrame, chart_type: str, num_cols
             y_col    = num_cols[0]     # tendência da 1ª série
             data = df[[time_col, y_col]].dropna()
             if len(data) < 2:
-                return
+                return None
 
             # Datetime → int64 (nanos) para regressão
             x = data[time_col].astype("int64") / 1e9     # segundos
             y = data[y_col].to_numpy()
+            x_var_name, y_var_name = time_col, y_col
         else:
-            return  # não aplicável
+            return None  # não aplicável
 
         # Regressão OLS simples y = a*x + b
         slope, intercept = np.polyfit(x, y, 1)
         y_pred = slope * x + intercept
         denom = ((y - y.mean()) ** 2).sum()
         if denom == 0:
-            return  # evita divisão por zero
+            return None  # evita divisão por zero
         r2 = 1 - ((y - y_pred) ** 2).sum() / denom
         if np.isnan(r2) or r2 < R2_THRESHOLD:
-            return  # tendência fraca
+            return None  # tendência fraca
 
         # Adiciona linha de tendência
         x_min, x_max = x.min(), x.max()
@@ -279,5 +284,20 @@ def add_trendline_if_applicable(fig, df: pd.DataFrame, chart_type: str, num_cols
                 name=f"Tendência (R²={r2:.2f})",
                 hovertemplate=f"y = {slope:.2f}x + {intercept:.2f}<br>R² = {r2:.2f}<extra></extra>"
             )
+        
+        # Retorna informações da regressão
+        regression_info = {
+            "slope": float(slope),
+            "intercept": float(intercept),
+            "r_squared": float(r2),
+            "equation": f"y = {slope:.4f}x + {intercept:.4f}",
+            "x_variable": x_var_name,
+            "y_variable": y_var_name,
+            "chart_type": chart_type,
+            "data_points": len(data)
+        }
+        
+        return regression_info
     except Exception as e:
         logger.error(f"Erro em add_trendline_if_applicable: {e}")
+        return None

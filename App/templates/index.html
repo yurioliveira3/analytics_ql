@@ -97,10 +97,12 @@
                         {% endif %}
                         <!-- Seção de gráfico -->
                         {% if message.chart_html %}
-                          <h5 class="response-title">Visualização sugerida</h5>
-                          <div class="chart-container">
-                            {{ message.chart_html|safe }}
-                          </div>
+                        <div class="dataframe-container">
+                            <p class="response-title">Visualização sugerida:</p>
+                            <div class="chart-container">
+                                {{ message.chart_html|safe }}
+                            </div>
+                        </div>
                         {% endif %}
                     {% endif %}
                 </div>

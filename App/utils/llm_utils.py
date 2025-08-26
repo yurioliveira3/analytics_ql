@@ -67,7 +67,7 @@ def read_prompt_file(file_path: str) -> str:
         return "Você é um especialista em SQL. Crie uma query para: {natural_language_query} com base em: {context}"
 
 
-def generate_insights_payload(last_entry: dict, result: pd.DataFrame | str, dataframe_analysis_df: pd.DataFrame | None = None, ml_algorithm: str | None = None, chart_type: str | None = None) -> dict:
+def generate_insights_payload(last_entry: dict, result: pd.DataFrame | str, dataframe_analysis_df: pd.DataFrame | None = None, ml_algorithm: str | None = None, chart_type: str | None = None, regression_info: dict | None = None) -> dict:
     """
     Monta o payload JSON para geração de insights.
 
@@ -77,6 +77,7 @@ def generate_insights_payload(last_entry: dict, result: pd.DataFrame | str, data
         dataframe_analysis_df: DataFrame com análise descritiva (opcional).
         ml_algorithm: Algoritmo de ML utilizado (opcional).
         chart_type: Tipo de gráfico gerado (opcional).
+        regression_info: Informações da análise de regressão linear (opcional).
 
     Returns:
         Dicionário pronto para envio ao modelo de insights.
@@ -107,7 +108,8 @@ def generate_insights_payload(last_entry: dict, result: pd.DataFrame | str, data
         "data_sample": data_sample if data_sample else [],
         "ml_algorithm": ml_algorithm if ml_algorithm else "Nenhum algoritmo de ML aplicado",
         #"ml_result": ml_result if ml_result is not None else None,
-        "chart_type": chart_type if chart_type else "Nenhum gráfico sugerido"
+        "chart_type": chart_type if chart_type else "Nenhum gráfico sugerido",
+        "regression_analysis": regression_info if regression_info else "Nenhuma análise de regressão aplicada"
     }
     
     return payload

@@ -541,7 +541,7 @@ def execute_last_query():
             result_data["csv"] = csv_text
             
             # Sugere um gráfico
-            chart_html, chart_type = suggest_chart(exec_res)
+            chart_html, chart_type, regression_info = suggest_chart(exec_res)
             # Garantir que as chaves existam mesmo sem gráfico proposto
             result_data["chart_html"] = chart_html or ""
             result_data["chart_type"] = chart_type or ""
@@ -578,6 +578,8 @@ def execute_last_query():
         # Sem gráfico para erro
         result_data["chart_html"] = ""
         result_data["chart_type"] = ""
+        chart_type = ""
+        regression_info = None
 
     # Gerar insights
     payload = generate_insights_payload(
@@ -585,7 +587,8 @@ def execute_last_query():
         result=exec_res if isinstance(exec_res, pd.DataFrame) else None,
         dataframe_analysis_df=dataframe_analysis_df if "dataframe_analysis_df" in locals() else None,
         ml_algorithm=last_assistant_message.get('ml_algorithm'),
-        chart_type=chart_type
+        chart_type=chart_type,
+        regression_info=regression_info if "regression_info" in locals() else None
     )
 
     prompt_template = read_prompt_file(os.path.join(DIR_PATH, "prompts", "insights_generation.txt"))
