@@ -7,6 +7,7 @@ import time
 import pandas as pd
 from google.api_core.exceptions import ResourceExhausted
 from utils.logger import get_logger
+from utils.llm_interface import LLMAdapter, LLMResponse
 
 # Logger para este módulo
 logger = get_logger(__name__)
@@ -14,26 +15,56 @@ logger = get_logger(__name__)
 
 def safe_send_message(model, prompt, history=None, retries=5, backoff_factor=2):
     """
-    Envia uma mensagem ao modelo Gemini de forma segura.
+    Envia uma mensagem ao modelo LLM de forma segura.
+    Agora suporta tanto modelos Gemini (legacy) quanto novos adaptadores LLM.
     
     Args:
-        model: Modelo Gemini a ser usado
+        model: Modelo LLM (pode ser Gemini antigo ou novo LLMAdapter)
         prompt: Prompt a ser enviado
         history: Histórico de conversas (opcional)
         retries: Número de tentativas
         backoff_factor: Fator de backoff exponencial
         
     Returns:
-        Resposta do modelo
+        Resposta do modelo (compatível com código existente)
     """
+    # Detecta se é o novo adaptador ou modelo Gemini legado
+    is_new_adapter = isinstance(model, LLMAdapter)
+    
     attempt = 0
     while attempt < retries:
         try:
-            response = model.generate_content(prompt)
-            if history is not None:
-                # O histórico agora pode armazenar o JSON diretamente
-                history.append({"prompt": prompt, "response": response.text})
-            return response
+            if is_new_adapter:
+               
+                # Usa nova interface LLMAdapter
+                response = model.generate_content(prompt)
+                
+                # Cria objeto compatível com código existente
+                class CompatibleResponse:
+                    def __init__(self, llm_response: LLMResponse):
+                        self.text = llm_response.text
+                        self._llm_response = llm_response
+                        
+                        # Tenta expor candidates se a resposta original tiver
+                        if (hasattr(llm_response, 'raw_response') and 
+                            hasattr(llm_response.raw_response, 'candidates')):
+                            self.candidates = llm_response.raw_response.candidates
+                        else:
+                            self.candidates = None
+                
+                compatible_response = CompatibleResponse(response)
+                
+                if history is not None:
+                    history.append({"prompt": prompt, "response": response.text})
+                
+                return compatible_response
+            else:
+                # Usa interface Gemini legada (para compatibilidade)
+                response = model.generate_content(prompt)
+                if history is not None:
+                    history.append({"prompt": prompt, "response": response.text})
+                return response
+                
         except ResourceExhausted as e:
             attempt += 1
             if attempt < retries:
@@ -44,8 +75,18 @@ def safe_send_message(model, prompt, history=None, retries=5, backoff_factor=2):
                 logger.error("Máximo de tentativas atingido para ResourceExhausted.")
                 break
         except Exception as e:
+            # Para adaptadores, tenta detectar se é erro de rate limit
+            if is_new_adapter and ("rate" in str(e).lower() or "limit" in str(e).lower()):
+                attempt += 1
+                if attempt < retries:
+                    wait_time = backoff_factor ** attempt
+                    logger.warning(f"Possível limite de requisições atingido. Tentando novamente em {wait_time} segundos... (Tentativa {attempt}/{retries})")
+                    time.sleep(wait_time)
+                    continue
+            
             logger.error(f"Erro inesperado ao enviar mensagem para o modelo: {e}", exc_info=True)
             break
+    
     raise Exception("Máximo de tentativas atingido.")
 
 

@@ -687,4 +687,6 @@ def validate_query_endpoint():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    # Para reduzir logs duplicados durante desenvolvimento, use debug=False
+    # ou configure use_reloader=False se quiser manter debug=True
+    app.run(debug=True, port=5001, use_reloader=False)

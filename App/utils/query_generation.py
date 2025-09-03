@@ -100,30 +100,81 @@ def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, s
     try:
         response = safe_send_message(generative_model_sql, prompt_generation)
         
-        if not response.candidates:
-            return "-- Nenhuma query válida foi gerada.", "", [], ""
-
-        sql_candidates = []
-        ml_algorithms = []
-        used_tables_list = []
-        explanations = []  # Lista de explicações por candidato
-        for candidate in response.candidates:
+        # Verificar se é resposta da nova arquitetura ou Gemini legado
+        if hasattr(response, '_llm_response'):
+            # Nova arquitetura - acessar dados da resposta original
+            raw_response = response._llm_response.raw_response
+            if hasattr(raw_response, 'candidates') and raw_response.candidates:
+                candidates = raw_response.candidates
+            else:
+                # Fallback: tentar parsear o texto diretamente
+                candidates = None
+                response_text = response.text
+        elif hasattr(response, 'candidates'):
+            # Gemini legado - usar diretamente
+            candidates = response.candidates
+            response_text = response.text
+        else:
+            # Fallback para qualquer outro caso
+            candidates = None
+            response_text = response.text if hasattr(response, 'text') else str(response)
+        
+        # Se não temos candidates, tenta parsear o texto diretamente
+        if not candidates:
             try:
-                json_text = candidate.content.parts[0].text
-                json_response = json.loads(json_text)
-                raw_sql = json_response.get("sql_query", "")
-                normalized_sql = normalize_sql(raw_sql) if raw_sql else ""
-                sql_candidates.append(normalized_sql)
-                # capture ml algorithm for each candidate
-                ml_algorithms.append(json_response.get("ml_algorithm", ""))
-                # capture explanation for each candidate
-                explanations.append(json_response.get("explanation", ""))
-                 # Captura used_tables se existir
-                used_tables = json_response.get("used_tables", [])
-                if isinstance(used_tables, list):
-                    used_tables_list = used_tables
-            except (json.JSONDecodeError, IndexError, AttributeError):
-                continue
+                # Tenta parsear como JSON único
+                json_response = json.loads(response_text)
+                if isinstance(json_response, list):
+                    # Lista de candidatos
+                    sql_candidates = []
+                    ml_algorithms = []
+                    explanations = []
+                    for item in json_response:
+                        raw_sql = item.get("sql_query", "")
+                        normalized_sql = normalize_sql(raw_sql) if raw_sql else ""
+                        if normalized_sql:
+                            sql_candidates.append(normalized_sql)
+                            ml_algorithms.append(item.get("ml_algorithm", ""))
+                            explanations.append(item.get("explanation", ""))
+                            used_tables = item.get("used_tables", [])
+                            if isinstance(used_tables, list):
+                                used_tables_list = used_tables
+                else:
+                    # Objeto único
+                    raw_sql = json_response.get("sql_query", "")
+                    normalized_sql = normalize_sql(raw_sql) if raw_sql else ""
+                    sql_candidates = [normalized_sql] if normalized_sql else []
+                    ml_algorithms = [json_response.get("ml_algorithm", "")]
+                    explanations = [json_response.get("explanation", "")]
+                    used_tables = json_response.get("used_tables", [])
+                    if isinstance(used_tables, list):
+                        used_tables_list = used_tables
+            except json.JSONDecodeError:
+                logger.error(f"Não foi possível parsear resposta como JSON: {response_text[:200]}...")
+                return "-- Erro ao processar resposta do modelo.", "", [], ""
+        else:
+            # Processar candidates tradicional do Gemini
+            sql_candidates = []
+            ml_algorithms = []
+            used_tables_list = []
+            explanations = []  # Lista de explicações por candidato
+            for candidate in candidates:
+                try:
+                    json_text = candidate.content.parts[0].text
+                    json_response = json.loads(json_text)
+                    raw_sql = json_response.get("sql_query", "")
+                    normalized_sql = normalize_sql(raw_sql) if raw_sql else ""
+                    sql_candidates.append(normalized_sql)
+                    # capture ml algorithm for each candidate
+                    ml_algorithms.append(json_response.get("ml_algorithm", ""))
+                    # capture explanation for each candidate
+                    explanations.append(json_response.get("explanation", ""))
+                     # Captura used_tables se existir
+                    used_tables = json_response.get("used_tables", [])
+                    if isinstance(used_tables, list):
+                        used_tables_list = used_tables
+                except (json.JSONDecodeError, IndexError, AttributeError):
+                    continue
 
         if not sql_candidates:
             return "-- Nenhuma query válida foi gerada.", "", [], ""
