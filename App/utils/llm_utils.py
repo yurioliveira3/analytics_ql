@@ -13,6 +13,31 @@ from utils.llm_interface import LLMAdapter, LLMResponse
 logger = get_logger(__name__)
 
 
+def create_compatible_response(llm_response: LLMResponse):
+    """
+    Cria um objeto compatível com o código existente a partir de LLMResponse.
+    
+    Args:
+        llm_response: Resposta do LLMAdapter
+        
+    Returns:
+        Objeto compatível com interface legacy
+    """
+    class CompatibleResponse:
+        def __init__(self, response):
+            self.text = response.text
+            self._llm_response = response
+            
+            # Tenta expor candidates se a resposta original tiver
+            if (hasattr(response, 'raw_response') and 
+                hasattr(response.raw_response, 'candidates')):
+                self.candidates = response.raw_response.candidates
+            else:
+                self.candidates = None
+    
+    return CompatibleResponse(llm_response)
+
+
 def safe_send_message(model, prompt, history=None, retries=5, backoff_factor=2):
     """
     Envia uma mensagem ao modelo LLM de forma segura.
@@ -39,20 +64,8 @@ def safe_send_message(model, prompt, history=None, retries=5, backoff_factor=2):
                 # Usa nova interface LLMAdapter
                 response = model.generate_content(prompt)
                 
-                # Cria objeto compatível com código existente
-                class CompatibleResponse:
-                    def __init__(self, llm_response: LLMResponse):
-                        self.text = llm_response.text
-                        self._llm_response = llm_response
-                        
-                        # Tenta expor candidates se a resposta original tiver
-                        if (hasattr(llm_response, 'raw_response') and 
-                            hasattr(llm_response.raw_response, 'candidates')):
-                            self.candidates = llm_response.raw_response.candidates
-                        else:
-                            self.candidates = None
-                
-                compatible_response = CompatibleResponse(response)
+                # Cria objeto compatível com código existente usando função auxiliar
+                compatible_response = create_compatible_response(response)
                 
                 if history is not None:
                     history.append({"prompt": prompt, "response": response.text})

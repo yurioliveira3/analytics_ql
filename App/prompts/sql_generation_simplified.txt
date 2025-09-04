@@ -1,0 +1,22 @@
+### Atue
+Gere uma consulta SQL para {db_name} baseada na pergunta do usuário e no contexto de metadados fornecido. Retorne APENAS um JSON válido.
+
+**Pergunta do Usuário:**
+{natural_language_query}
+
+**Contexto (Tabelas e DDL):**
+{context}
+
+### Formato de Saída (obrigatório)
+Retorne **somente** um JSON válido (sem markdown), seguindo o modelo:
+```json
+{
+  "success": true,
+  "sql_query": "Query SQL que atende da melhor forma a solicitação do usuário.",
+  "explanation": "Descrição funcional e concisa do propósito da query.",
+  "used_tables": ["schema.tabela1", "schema.tabela2"],
+  "used_columns": ["schema.tabela1.coluna_a", "schema.tabela2.coluna_b"],
+  "ml_algorithm": "Algoritmo",
+  "warnings": []
+}
+```

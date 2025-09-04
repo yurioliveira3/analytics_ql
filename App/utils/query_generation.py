@@ -4,6 +4,7 @@ Módulo principal para conversão de linguagem natural para SQL.
 
 import os
 import json
+import re
 from utils.config import vector_store, DIR_PATH, embedding_function
 from utils.llms import generative_model_sql
 from utils.logger import get_logger
@@ -19,6 +20,40 @@ from utils.sql_operations import normalize_sql, pick_best_query, is_query_safe
 
 # Logger para este módulo
 logger = get_logger(__name__)
+
+
+def extract_json_from_markdown(text: str) -> str:
+    """
+    Extrai conteúdo JSON de blocos de código markdown.
+    
+    Args:
+        text: Texto que pode conter JSON em blocos de código markdown
+        
+    Returns:
+        JSON extraído ou o texto original se não houver blocos de código
+    """
+    # Padrão para capturar blocos de código JSON ou genéricos
+    patterns = [
+        r'```json\s*(.*?)\s*```',  # Blocos ```json ... ```
+        r'```\s*(.*?)\s*```',      # Blocos genéricos ``` ... ```
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, text, re.DOTALL | re.IGNORECASE)
+        if matches:
+            # Retorna o primeiro match que pareça ser JSON válido
+            for match in matches:
+                match = match.strip()
+                try:
+                    # Tenta parsear para verificar se é JSON válido
+                    json.loads(match)
+                    logger.debug(f"JSON extraído de bloco de código markdown: {match[:100]}...")
+                    return match
+                except json.JSONDecodeError:
+                    continue
+    
+    # Se não encontrou blocos de código ou JSON válido, retorna o texto original
+    return text.strip()
 
 
 def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, str, list[str], str]:
@@ -57,10 +92,20 @@ def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, s
 
         vec = embedding_function.embed_query(natural_language_query)
 
+        # Verifica se o provider é ollama para usar lógica diferenciada
+        is_ollama_provider = generative_model_sql.get_provider_name() == "ollama"
+        
+        if is_ollama_provider:
+            # Para ollama: busca apenas 3 resultados
+            search_k = 3
+        else:
+            # Para outros providers (gemini): busca 15 resultados como antes
+            search_k = 15
+
         # Busca apenas metadados de objetos que suportam SELECT
         results = vector_store.similarity_search_by_vector(
             vec,
-            k=30,
+            k=search_k,
             filter={
                 "tipo": ["TABLE", "VIEW", "MATERIALIZED_VIEW"] # "FUNCTION" e "SEQUENCE" - Adicionar se necessário
             }
@@ -76,15 +121,31 @@ def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, s
     # Log da consulta válida sendo processada
     log_interaction_type(natural_language_query, "valid_query_processing")
 
-    # Monta contexto usando page_content e campo cmetadata de cada documento
-    context = "\n".join([
-        f"{doc.page_content}\nMetadata:\n{ {k: v for k, v in doc.metadata.items() if k not in ['linhas', 'resumo']} }\n\n"
-        for doc in results
-    ])
-   
-    prompt_template_generation = read_prompt_file(
-        os.path.join(DIR_PATH, "prompts", "sql_generation.txt")
-    )
+    # Verifica novamente se é ollama para usar contexto diferenciado
+    is_ollama_provider = generative_model_sql.get_provider_name() == "ollama"
+    
+    if is_ollama_provider:
+        # Para ollama: usa apenas os primeiros 3 resultados e somente o document (page_content)
+        context = "\n".join([
+            f"{doc.page_content}\n"
+            for doc in results[:3]
+        ])
+        
+        # Usa template específico para ollama
+        prompt_template_generation = read_prompt_file(
+            os.path.join(DIR_PATH, "prompts", "sql_generation_simplified.txt")
+        )
+        
+    else:
+        # Para outros providers (gemini): mantém lógica original
+        context = "\n".join([
+            f"{doc.page_content}\nMetadata:\n{ {k: v for k, v in doc.metadata.items() if k not in ['linhas', 'resumo']} }\n\n"
+            for doc in results
+        ])
+       
+        prompt_template_generation = read_prompt_file(
+            os.path.join(DIR_PATH, "prompts", "sql_generation.txt")
+        )
 
     # Escapa chaves literais para evitar KeyError
     prompt_template_generation = prompt_template_generation.replace("{", "{{").replace("}", "}}")
@@ -122,8 +183,11 @@ def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, s
         # Se não temos candidates, tenta parsear o texto diretamente
         if not candidates:
             try:
+                # Extrai JSON de blocos de código markdown se necessário
+                cleaned_text = extract_json_from_markdown(response_text)
+                
                 # Tenta parsear como JSON único
-                json_response = json.loads(response_text)
+                json_response = json.loads(cleaned_text)
                 if isinstance(json_response, list):
                     # Lista de candidatos
                     sql_candidates = []
@@ -149,8 +213,10 @@ def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, s
                     used_tables = json_response.get("used_tables", [])
                     if isinstance(used_tables, list):
                         used_tables_list = used_tables
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 logger.error(f"Não foi possível parsear resposta como JSON: {response_text[:200]}...")
+                logger.error(f"Erro de JSON: {e}")
+                logger.debug(f"Texto completo da resposta: {response_text}")
                 return "-- Erro ao processar resposta do modelo.", "", [], ""
         else:
             # Processar candidates tradicional do Gemini
@@ -161,7 +227,9 @@ def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, s
             for candidate in candidates:
                 try:
                     json_text = candidate.content.parts[0].text
-                    json_response = json.loads(json_text)
+                    # Extrai JSON de blocos de código markdown se necessário
+                    cleaned_json_text = extract_json_from_markdown(json_text)
+                    json_response = json.loads(cleaned_json_text)
                     raw_sql = json_response.get("sql_query", "")
                     normalized_sql = normalize_sql(raw_sql) if raw_sql else ""
                     sql_candidates.append(normalized_sql)

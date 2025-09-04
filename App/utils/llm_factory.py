@@ -40,7 +40,7 @@ class LLMFactory:
                 model_name="gemini-2.0-flash-lite",
                 temperature=0.0,
                 top_p=0.5,
-                top_k=60,
+                top_k=30,
                 max_tokens=1024,
                 candidate_count=3,  # Gera 3 candidatos para reranking
                 response_format="json",
