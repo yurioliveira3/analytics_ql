@@ -112,7 +112,7 @@ def get_sql_from_text(natural_language_query: str, db_name: str) -> tuple[str, s
         )
 
     except Exception as e:
-        return f"-- Erro ao conectar ao Vector Store: {e}", "", []
+        return f"-- Erro ao conectar ao Vector Store: {e}", "", [], ""
 
     if not results:
         log_interaction_type(natural_language_query, "no_metadata_found")
