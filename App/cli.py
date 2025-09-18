@@ -5,6 +5,7 @@ from utils.constants import TRAD_ESTATISTICAS, ALGORITHM_MAPPING
 from utils.query_generation import get_sql_from_text
 from utils.llms import generative_model_insights
 from utils.chart_generator import suggest_chart
+from utils.ml_algorithms import apply_ml_algorithm
 from utils.logger import get_logger
 from utils.config import DIR_PATH
 from utils.query_protection import (
@@ -546,30 +547,17 @@ def execute_last_query():
             result_data["chart_html"] = chart_html or ""
             result_data["chart_type"] = chart_type or ""
 
-            # Aplicar ML algorithm
+            # Aplicar ML algorithm usando o módulo inteligente
             ml_algorithm = last_assistant_message.get('ml_algorithm')
             ml_result = None
             
-            try:
-                numeric_df = exec_res.select_dtypes(include=["number"]).dropna()
-                if ml_algorithm and not numeric_df.empty:
-                    alg_name = ml_algorithm.split("(")[0]
-                    creator = ALGORITHM_MAPPING.get(alg_name)
-                    if creator and not numeric_df.empty:
-                        alg = creator()
-                        if hasattr(alg, "fit_predict"):
-                            ml_result = alg.fit_predict(numeric_df).tolist()
-                        elif hasattr(alg, "predict"):
-                            alg.fit(numeric_df)
-                            ml_result = alg.predict(numeric_df).tolist()
+            if ml_algorithm:
+                ml_result = apply_ml_algorithm(exec_res, ml_algorithm)
                 
                 # Adiciona coluna com resultado do ML ao DataFrame se compatível
                 if ml_result is not None and len(ml_result) == exec_res.shape[0]:
                     exec_res["resultado_ml"] = ml_result
                     result_data["ml_result"] = ml_result
-                    
-            except Exception as e:
-                logger.error(f"Erro ao aplicar algoritmo de ML: {e}")
 
     else:
         # Se a execução retornou uma string de erro

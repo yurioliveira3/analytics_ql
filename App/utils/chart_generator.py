@@ -24,14 +24,28 @@ def is_identifier(series: pd.Series) -> bool:
         True se for identificador, False caso contrário
     """
     name = series.name.lower()
-    # 1) Nome suspeito
+    
+    # 1) Nome explicitamente suspeito de identificador
     if any(key in name for key in ["id", "cod", "code", "cpf", "rg", "registro"]):
         return True
-    # 2) Cardinalidade alta e inteira
+    
+    # 2) Nomes que definitivamente NÃO são identificadores (mesmo com cardinalidade alta)
+    non_identifier_patterns = [
+        "numero", "quantidade", "qtd", "count", "total", "valor", "preco", "price",
+        "disciplina", "idade", "ano", "mes", "dia", "nota", "score", "rating",
+        "percent", "taxa", "rate", "size", "tamanho", "peso", "weight"
+    ]
+    if any(pattern in name for pattern in non_identifier_patterns):
+        return False
+        
+    # 3) Cardinalidade alta E inteira - mas só se não for métrica óbvia
     if pd.api.types.is_integer_dtype(series):
         unique_ratio = series.nunique(dropna=True) / len(series)
-        if unique_ratio >= 0.8:           # >= 80 % valores únicos
+        # Só considera ID se cardinalidade for MUITO alta (95%) e sem padrões de métrica
+        if unique_ratio >= 0.95:
             return True
+    
+    # 4) Caso especial: data_nascimento nunca é ID
     if "data_nascimento" in name:
         return False 
     
@@ -73,13 +87,14 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None, dict | None
                 return None
             return min(valid_cols, key=lambda x: x[1])[0]
 
-        # ── Filtro "all-unique" reativado ────────────────────────────────────────
+        # ── Filtro "all-unique" mais inteligente ──────────────────────────────────
         def has_all_unique_values(cols: list[str]) -> bool:
             """Verifica se todas as colunas categóricas têm apenas valores únicos."""
             return all(df[col].nunique() == len(df) for col in cols)
 
+        # Só pula se TODAS as categóricas forem únicas E não houver numéricas úteis
         if cat_cols and has_all_unique_values(cat_cols) and not num_cols:
-            return None, None, None  # Pula gráfico se tudo for único
+            return None, None, None
 
         # 2 ─ Regras específicas (mais restritas → mais genéricas)
 
@@ -129,22 +144,36 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None, dict | None
                 return None, None, None  # Todas categóricas têm cardinalidade 1
 
             if num_cols:
+                # Caso: 1 categórica + 1 numérica - usar valores diretos
                 values_col = num_cols[0]
-                counts = df[[cat, values_col]].dropna()
+                plot_data = df[[cat, values_col]].dropna()
+                
+                if len(plot_data) <= 2:
+                    fig = px.pie(plot_data, names=cat, values=values_col, hole=0.3)
+                    chart_type = "pizza"
+                else:
+                    fig = px.bar(
+                        plot_data.sort_values(values_col, ascending=False),
+                        x=cat, y=values_col, text=values_col
+                    )
+                    fig.update_traces(texttemplate='%{text}', textposition='outside')
+                    chart_type = "barras"
             else:
+                # Caso: 1 categórica + 0 numérica - contar ocorrências
                 values_col = "count"
                 counts = df[cat].value_counts().reset_index()
                 counts.columns = [cat, values_col]
-
-            if len(counts) <= 4:
-                fig = px.pie(counts, names=cat, values=values_col, hole=0.3)
-                chart_type = "pizza"
-            else:
-                fig = px.bar(
-                    counts.sort_values(values_col, ascending=False),
-                    x=cat, y=values_col, text=values_col
-                )
-                chart_type = "barras"
+                
+                if len(counts) <= 2:
+                    fig = px.pie(counts, names=cat, values=values_col, hole=0.3)
+                    chart_type = "pizza"
+                else:
+                    fig = px.bar(
+                        counts.sort_values(values_col, ascending=False),
+                        x=cat, y=values_col, text=values_col
+                    )
+                    fig.update_traces(texttemplate='%{text}', textposition='outside')
+                    chart_type = "barras-contagem"
 
         # 2E. Histograma: 1 numérica, 0 categóricas
         elif len(num_cols) == 1 and not cat_cols:
@@ -172,7 +201,8 @@ def suggest_chart(df: pd.DataFrame) -> tuple[str | None, str | None, dict | None
             
             counts = df[cat].value_counts().reset_index()
             counts.columns = [cat, "count"]
-            fig = px.bar(counts, x=cat, y="count")
+            fig = px.bar(counts, x=cat, y="count", text="count")
+            fig.update_traces(texttemplate='%{text}', textposition='outside')
             chart_type = "barras-contagem"
 
         # 2H. Fallback para datetime sem numéricas
